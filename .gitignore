@@ -1,0 +1,8 @@
+host/scdh
+bench/scdsh4
+bench/fame_sh4.o
+*.o
+*.elf
+*.bin
+*.BIN
+build/

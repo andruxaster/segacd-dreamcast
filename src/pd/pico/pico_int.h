@@ -1049,6 +1049,7 @@ int PicoPlayTape(const char *fname);
 int PicoRecordTape(const char *fname);
 void PicoCloseTape(void);
 #else
+void PicoPrepareMS(void);   /* snatcher-dc: stub in md_stubs.c */
 #define PicoPowerMS()
 #define PicoResetMS()
 #define PicoMemSetupMS()
@@ -1179,6 +1180,7 @@ void PicoWrite8_32x(u32 a, u32 d);
 void PicoWrite16_32x(u32 a, u32 d);
 void PicoDrawSetOutFormat32x(pdso_t which, int use_32x_line_mode);
 void PicoDrawSetOutBuf32X(void *dest, int increment);
+void p32x_sync_sh2s(unsigned int m68k_target);
 #define FinalizeLine32xRGB555 NULL
 #define p32x_pwm_update(...)
 #define p32x_timers_recalc()

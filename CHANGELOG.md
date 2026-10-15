@@ -1,5 +1,13 @@
 # snatcher-dc changes
 
+## r2
+
+- Sound: ~70 ms cushion in the output ring (was ~23 ms), built before the
+  sound starts and again after an underrun: frames that come late (scene
+  changes, VMU writes) no longer crackle. Model with 3 % of the frames
+  12 ms late: 0 underruns (r1: 492 per minute).
+- GCC 15: PicoPrepareMS / p32x_sync_sh2s declared without SMS / 32X.
+
 ## r1
 
 - New project from dc-poker's snatcher.elf and md-dc: PicoDrive 8b5e91b with

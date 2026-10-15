@@ -19,12 +19,13 @@
 
 /* one entry per 22 kHz sample: PicoDrive's L/R and two CD L/R pairs */
 typedef struct { int16_t l, r, c0l, c0r, c1l, c1r; } snd_t;
-#define SND_RING 4096                         /* entries, power of 2 (0.19 s) */
+#define SND_RING 8192                         /* entries, power of 2 (0.37 s) */
 static int16_t snd_frame[2 * 1024];           /* PicoDrive's buffer for one frame */
 static int16_t cd_frame[4 * 1024];            /* CD audio of the frame */
 static snd_t snd_ring[SND_RING];
 static uint32_t snd_head, snd_tail;           /* entries written / read */
 uint32_t snd_mix_underruns, snd_mix_drops;
+static int priming = 1;                       /* silence until the cushion is there */
 uint32_t snd_mix_fixed;                       /* tests: fixed 16.16 step, no backlog control */
 
 /* PicoIn.writeSound: once per frame, after the frame's CD audio */
@@ -51,6 +52,7 @@ void snd_mix_init(void) {
     nga_cdda_out = cd_frame;
     nga_cdda_out_len = 0;
     snd_head = snd_tail = 0;
+    priming = 1;
 }
 
 static snd_t prev_e, cur_e;
@@ -63,6 +65,7 @@ static inline void snd_next(void) {
     prev_e = cur_e;
     if (snd_head == snd_tail) {               /* underrun: hold the sound, CD silent */
         snd_mix_underruns++;
+        priming = 1;                          /* and build the cushion again */
         cur_e.c0l = cur_e.c0r = cur_e.c1l = cur_e.c1r = 0;
         return;
     }
@@ -73,10 +76,19 @@ static inline int16_t clip(int v) { return (int16_t)(v > 32767 ? 32767 : v < -32
 
 void snd_mix_out(int16_t *out, int frames) {
     int backlog = (int)(snd_head - snd_tail);  /* in 22 kHz entries */
-    int target = frames / 4 + 512;
+    int target = frames / 4 + 1536;           /* ~70 ms of cushion: uneven frames, VMU writes */
     int err = backlog - target;
-    if (err > 2048) {                         /* far behind (loading stall): resync */
+    if (err > 4096) {                         /* far behind (loading stall): resync */
         snd_tail = snd_head - (uint32_t)target;
+        err = 0;
+        err_f = 0;
+    }
+    if (priming) {                            /* start (or after an underrun): wait for the cushion */
+        if (backlog < target) {
+            memset(out, 0, (size_t)frames * 4);
+            return;
+        }
+        priming = 0;
         err = 0;
         err_f = 0;
     }

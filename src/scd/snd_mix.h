@@ -11,6 +11,4 @@ void snd_mix_init(void);
 void snd_mix_out(int16_t *out, int frames);
 extern uint32_t snd_mix_underruns, snd_mix_drops;
 extern uint32_t snd_mix_fixed; /* tests: fixed 16.16 step */
-/* 1: the output follows a machine that runs up to ~12 % slow (pitch with it) */
-extern volatile int snd_mix_elastic;
 #endif

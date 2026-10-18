@@ -1,18 +1,5 @@
 # snatcher-dc changes
 
-## r3
-
-- The BIOS (logo, title screen, CD player, memory manager) is shown by
-  default; B held at power-on: the fast boot of r1/r2.
-- Graphics ASIC (pico/cd/gfx.c): new renderer with offset tables, 8-bit
-  fixed point and a fast path for unrotated rows; 2.5x faster, identical to
-  the old one (kept as -DGFX_REF) over the BIOS and 60k game frames. BIOS
-  logo frame on qemu-sh4: 5.3M -> 4.2M instructions.
-- Sound: elastic mode until the game's own program runs (pitch follows
-  the machine down to ~85 % speed, integral control); then the exact
-  rate as before.
-- bench/Makefile: cd_cache.c linked.
-
 ## r2
 
 - Sound: ~70 ms cushion in the output ring (was ~23 ms), built before the

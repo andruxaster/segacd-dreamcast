@@ -55,11 +55,6 @@ typedef struct
   uint8 lut_pixel[0x200];           /* Graphics operation dot offset lookup table */
   uint16 lut_cell2[0x80];           /* Graphics operation stamp offset lookup table */
   uint16 lut_cell4[0x80];           /* Graphics operation stamp offset lookup table */
-  /* snatcher-dc: cell and pixel offset in one step, by HFLIP/ROTATION and
-     the pixel's row and column in the stamp: hrr | y << 3 | x << 7 (16x16)
-     or hrr | y << 3 | x << 8 (32x32) */
-  uint16 lut_off16[8 * 16 * 16];
-  uint16 lut_off32[8 * 32 * 32];
 } gfx_t;
 
 static gfx_t gfx;
@@ -131,23 +126,6 @@ void gfx_init(void)
     /* pixel offset (0-63) */
     gfx.lut_pixel[i] = col + row * 8;
   }
-
-  /* snatcher-dc: combined tables (same values as lut_cell | lut_pixel) */
-  for (i = 0; i < 8; i++)
-    for (j = 0; j < 32; j++)
-    {
-      int k;
-      for (k = 0; k < 32; k++)
-      {
-        uint32 y = j, x = k;
-        uint32 c4 = gfx.lut_cell4[i | ((y >> 3) & 3) << 5 | ((x >> 3) & 3) << 3];
-        uint32 c2 = gfx.lut_cell2[i | ((y >> 3) & 3) << 5 | ((x >> 3) & 3) << 3];
-        uint32 p = gfx.lut_pixel[i | (y & 7) << 6 | (x & 7) << 3];
-        gfx.lut_off32[i | j << 3 | k << 8] = (uint16)(c4 | p);
-        if (j < 16 && k < 16)
-          gfx.lut_off16[i | j << 3 | k << 7] = (uint16)(c2 | p);
-      }
-    }
 }
 
 int gfx_context_save(uint8 *state)
@@ -330,7 +308,7 @@ right##N:								\
   }									\
 } while (0)
 
-static void gfx_render_ref(uint32 bufferIndex, uint32 width)
+static void gfx_render(uint32 bufferIndex, uint32 width)
 {
   uint8 pixel_in, pixel_out;
   uint32 priority;
@@ -375,213 +353,6 @@ static void gfx_render_ref(uint32 bufferIndex, uint32 width)
   } else {
     RENDER_LOOP(3,                        , 1, (!priority) | pixel_out);
   }
-}
-
-/* snatcher-dc: the same operation, a pixel pair per Word RAM byte (Sega CD
-   BIOS logo: ~24000 pixels a frame), same results as gfx_render_ref (kept
-   for the PC build check, GFX_REF):
-   - the coordinates are kept 8 bits up (24-bit position in the top bits),
-     so they wrap at 24 bits by themselves and need no mask per pixel;
-   - one combined table gives the cell and pixel offset in the stamp;
-   - the destination byte is read (only if the priority mode needs it) and
-     written once per pixel pair;
-   - a loop per priority mode, stamp size and repeat mode. */
-#define GFX_SRC(X, Y, OUT, BIG, REP) do {                                   \
-    uint32 x_ = (X), y_ = (Y);                                              \
-    OUT = 0;                                                                \
-    if (REP) { x_ &= dmask; y_ &= dmask; }                                  \
-    if (REP || ((x_ | y_) & outside) == 0) {                                \
-      uint32 sd_ = mapPtr[(x_ >> sshift) | ((y_ >> sshift) << mapShift)];   \
-      uint32 si_ = (sd_ & stampMask) << 8;                                  \
-      if (si_) {                                                            \
-        uint32 h_ = (sd_ >> 13) & 7;                                        \
-        si_ |= (BIG) ? lut32[h_ | ((y_ >> 16) & 0xf8) | ((x_ >> 11) & 0x1f00)] \
-                     : lut16[h_ | ((y_ >> 16) & 0x78) | ((x_ >> 12) & 0x780)]; \
-        uint32 b_ = wram[MEM_BE2(si_ >> 1)];                                \
-        OUT = (si_ & 1) ? (b_ & 15) : (b_ >> 4);                            \
-      }                                                                     \
-    }                                                                       \
-  } while (0)
-
-/* PRIO: 0 normal, 1 underwrite (keep a non-zero old pixel), 2 overwrite
-   (keep the old pixel where the new one is 0) */
-#define GFX_COMBINE(PRIO, NEW, OLD) \
-  ((PRIO) == 0 ? (NEW) : (PRIO) == 1 ? ((OLD) ? (OLD) : (NEW)) : ((NEW) ? (NEW) : (OLD)))
-
-#define GFX_LOOPS(PRIO, SRC) do {                                       \
-  if ((bufferIndex & 1) && width) {         /* a first right pixel alone */ \
-    uint32 p;                                                               \
-    SRC(p);                                                                 \
-    uint8 *d = &wram[MEM_BE2(bufferIndex >> 1)];                            \
-    *d = (uint8)((*d & 0xf0) | GFX_COMBINE(PRIO, p, *d & 15));              \
-    width--;                                                                \
-    bufferIndex += 1;                                                       \
-    if ((bufferIndex & 7) == 0) bufferIndex += bufferOffset - 1;            \
-  }                                                                         \
-  while (width >= 2) {                                                      \
-    uint32 pl, pr;                                                          \
-    SRC(pl);                                                                \
-    SRC(pr);                                                                \
-    uint8 *d = &wram[MEM_BE2(bufferIndex >> 1)];                            \
-    if (PRIO) {                                                             \
-      uint32 o = *d;                                                        \
-      pl = GFX_COMBINE(PRIO, pl, o >> 4);                                   \
-      pr = GFX_COMBINE(PRIO, pr, o & 15);                                   \
-    }                                                                       \
-    *d = (uint8)(pl << 4 | pr);                                             \
-    width -= 2;                                                             \
-    bufferIndex += 2;                                                       \
-    if ((bufferIndex & 7) == 0) bufferIndex += bufferOffset - 1;            \
-  }                                                                         \
-  if (width) {                              /* a last left pixel alone */   \
-    uint32 p;                                                               \
-    SRC(p);                                                                 \
-    uint8 *d = &wram[MEM_BE2(bufferIndex >> 1)];                            \
-    *d = (uint8)((*d & 0x0f) | GFX_COMBINE(PRIO, p, *d >> 4) << 4);         \
-  }                                                                         \
-} while (0)
-
-/* any position and step: a pixel, then the next position */
-#define GFX_ANY(OUT) do { GFX_SRC(X, Y, OUT, BIG_, REP_); X += dx; Y += dy; } while (0)
-#define GFX_LOOP(PRIO, BIG, REP) do {                                       \
-  enum { BIG_ = BIG, REP_ = REP };                                          \
-  GFX_LOOPS(PRIO, GFX_ANY);                                                 \
-} while (0)
-
-/* 1:1 along the line (step 1.0 in x, 0 in y; the BIOS logo): the stamp
-   map entry is fetched once per 16 (32) pixels */
-#define GFX_ROW(OUT) do {                                                   \
-    OUT = 0;                                                                \
-    if (!((X & outside) | yout)) {                                          \
-      uint32 sc_ = X >> sshift;                                             \
-      if (sc_ != cur_sc) {                                                  \
-        uint32 sd_ = mapPtr[maprow | sc_];                                  \
-        cur_sc = sc_;                                                       \
-        cur_base = (sd_ & stampMask) << 8;                                  \
-        cur_h = ((sd_ >> 13) & 7) | ylut;                                   \
-      }                                                                     \
-      if (cur_base) {                                                       \
-        uint32 si_ = cur_base | (BIG_ ? lut32[cur_h | ((X >> 11) & 0x1f00)] \
-                                      : lut16[cur_h | ((X >> 12) & 0x780)]); \
-        uint32 b_ = wram[MEM_BE2(si_ >> 1)];                                \
-        OUT = (si_ & 1) ? (b_ & 15) : (b_ >> 4);                            \
-      }                                                                     \
-    }                                                                       \
-    X += dx;                                                                \
-  } while (0)
-/* the source pair from one byte: with no flip or rotation (hrr = 0) and an
-   even pixel column, the next pixel is the low nibble of the same byte */
-#define GFX_ROWPAIR(PL, PR) do {                                            \
-    uint32 done_ = 0;                                                       \
-    if (!((X & outside) | yout)) {                                          \
-      uint32 sc_ = X >> sshift;                                             \
-      if (sc_ != cur_sc) {                                                  \
-        uint32 sd_ = mapPtr[maprow | sc_];                                  \
-        cur_sc = sc_;                                                       \
-        cur_base = (sd_ & stampMask) << 8;                                  \
-        cur_h = ((sd_ >> 13) & 7) | ylut;                                   \
-      }                                                                     \
-      if (cur_base && !(cur_h & 7) && !(X & (1u << 19))) {                  \
-        uint32 si_ = cur_base | (BIG_ ? lut32[cur_h | ((X >> 11) & 0x1f00)] \
-                                      : lut16[cur_h | ((X >> 12) & 0x780)]); \
-        uint32 b_ = wram[MEM_BE2(si_ >> 1)];                                \
-        PL = b_ >> 4; PR = b_ & 15;                                         \
-        X += 2 * dx;                                                        \
-        done_ = 1;                                                          \
-      }                                                                     \
-    }                                                                       \
-    if (!done_) { GFX_ROW(PL); GFX_ROW(PR); }                               \
-  } while (0)
-#define GFX_ROWLOOP(PRIO, BIG) do {                                         \
-  enum { BIG_ = BIG };                                                      \
-  const uint32 yout = Y & outside;                                          \
-  const uint32 ylut = BIG ? ((Y >> 16) & 0xf8) : ((Y >> 16) & 0x78);        \
-  const uint32 maprow = (Y >> sshift) << mapShift;                          \
-  uint32 cur_sc = ~0u, cur_base = 0, cur_h = 0;                             \
-  if ((bufferIndex & 1) && width) {         /* a first right pixel alone */ \
-    uint32 p;                                                               \
-    GFX_ROW(p);                                                             \
-    uint8 *d = &wram[MEM_BE2(bufferIndex >> 1)];                            \
-    *d = (uint8)((*d & 0xf0) | GFX_COMBINE(PRIO, p, *d & 15));              \
-    width--;                                                                \
-    bufferIndex += 1;                                                       \
-    if ((bufferIndex & 7) == 0) bufferIndex += bufferOffset - 1;            \
-  }                                                                         \
-  while (width >= 2) {                                                      \
-    uint32 pl, pr;                                                          \
-    GFX_ROWPAIR(pl, pr);                                                    \
-    uint8 *d = &wram[MEM_BE2(bufferIndex >> 1)];                            \
-    if (PRIO) {                                                             \
-      uint32 o = *d;                                                        \
-      pl = GFX_COMBINE(PRIO, pl, o >> 4);                                   \
-      pr = GFX_COMBINE(PRIO, pr, o & 15);                                   \
-    }                                                                       \
-    *d = (uint8)(pl << 4 | pr);                                             \
-    width -= 2;                                                             \
-    bufferIndex += 2;                                                       \
-    if ((bufferIndex & 7) == 0) bufferIndex += bufferOffset - 1;            \
-  }                                                                         \
-  if (width) {                              /* a last left pixel alone */   \
-    uint32 p;                                                               \
-    GFX_ROW(p);                                                             \
-    uint8 *d = &wram[MEM_BE2(bufferIndex >> 1)];                            \
-    *d = (uint8)((*d & 0x0f) | GFX_COMBINE(PRIO, p, *d >> 4) << 4);         \
-  }                                                                         \
-} while (0)
-
-static void gfx_render(uint32 bufferIndex, uint32 width)
-{
-#ifdef GFX_REF
-  gfx_render_ref(bufferIndex, width);
-  return;
-#else
-  const uint32 dmask = gfx.dotMask << 8, outside = ~(gfx.dotMask << 8) & 0xffffff00;
-  const uint32 stampMask = gfx.stampMask;
-  const uint16 *mapPtr = gfx.mapPtr;
-  const int sshift = gfx.stampShift + 8, mapShift = gfx.mapShift;
-  uint8 *wram = Pico_mcd->word_ram2M;
-  const uint32 bufferOffset = gfx.bufferOffset;
-  const uint16 *lut16 = gfx.lut_off16, *lut32 = gfx.lut_off32;
-
-  /* 13.3 start position -> 13.11, then 8 bits up; 5.11 steps likewise */
-  uint32 X = (uint32)*gfx.tracePtr++ << 16;
-  uint32 Y = (uint32)*gfx.tracePtr++ << 16;
-  uint32 dx = (uint32)(int32)(int16)*gfx.tracePtr++ << 8;
-  uint32 dy = (uint32)(int32)(int16)*gfx.tracePtr++ << 8;
-
-  uint32 priority = (Pico_mcd->s68k_regs[2] << 8) | Pico_mcd->s68k_regs[3];
-  priority = (priority >> 3) & 0x03;
-  int big = (Pico_mcd->s68k_regs[0x58+1] & 0x02) != 0;
-  int rep = (Pico_mcd->s68k_regs[0x58+1] & 0x01) != 0;
-
-  if (dy == 0 && dx == (1u << 19) && !rep) {
-    switch (priority * 2 + big) {
-    case 0: GFX_ROWLOOP(0, 0); break;
-    case 1: GFX_ROWLOOP(0, 1); break;
-    case 2: GFX_ROWLOOP(1, 0); break;
-    case 3: GFX_ROWLOOP(1, 1); break;
-    case 4: GFX_ROWLOOP(2, 0); break;
-    case 5: GFX_ROWLOOP(2, 1); break;
-    default: break;
-    }
-    return;
-  }
-  switch (priority * 4 + big * 2 + rep) {
-  case 0:  GFX_LOOP(0, 0, 0); break;
-  case 1:  GFX_LOOP(0, 0, 1); break;
-  case 2:  GFX_LOOP(0, 1, 0); break;
-  case 3:  GFX_LOOP(0, 1, 1); break;
-  case 4:  GFX_LOOP(1, 0, 0); break;
-  case 5:  GFX_LOOP(1, 0, 1); break;
-  case 6:  GFX_LOOP(1, 1, 0); break;
-  case 7:  GFX_LOOP(1, 1, 1); break;
-  case 8:  GFX_LOOP(2, 0, 0); break;
-  case 9:  GFX_LOOP(2, 0, 1); break;
-  case 10: GFX_LOOP(2, 1, 0); break;
-  case 11: GFX_LOOP(2, 1, 1); break;
-  default: break;                           /* mode 3 ("invalid"): the old pixels stay */
-  }
-#endif
 }
 
 void gfx_start(uint32 base)

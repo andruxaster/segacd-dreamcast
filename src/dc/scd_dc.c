@@ -444,12 +444,14 @@ int main(int argc, char **argv) {
     if (!athd) fatal("audio thread");
     thd_set_prio(athd, PRIO_DEFAULT - 1);
 
-    /* fast boot (mcd_boot.c): the BIOS logo, title and licence screens at
-       full speed behind a black screen; B held: the BIOS as it is (its CD
-       player and backup RAM manager) */
+    /* The BIOS (logo, title and licence screens) is shown as it is; until
+       the game's own program runs the sound may stretch a little
+       (snd_mix_elastic), as these screens can take a bit more than a frame
+       of Dreamcast time. B held at power-on: fast boot instead (mcd_boot.c),
+       the BIOS at full speed behind a black screen. */
     poll_pads();
     b_held_at_start = (PicoIn.pad[0] & 0x010) != 0;
-    if (!b_held_at_start) {
+    if (b_held_at_start) {
         mcd_boot_begin();
         while (mcd_boot_frame()) {
             if ((mcd_boot_frames() & 31) == 0) {   /* keep the display and the pads alive */
@@ -464,6 +466,8 @@ int main(int argc, char **argv) {
         snd_mix_init();                            /* drop the boot's silence */
         mq_reset_tiles();
         dbglog(DBG_INFO, "%s: fast boot, game at frame %d\n", GAME_TITLE, mcd_boot_frames());
+    } else {
+        snd_mix_elastic = 1;
     }
 
     uint64_t t_base = timer_us_gettime64(), frames = 0;
@@ -493,6 +497,13 @@ int main(int argc, char **argv) {
 
         PicoFrame();
         bram_poll();
+        if (snd_mix_elastic) {                     /* the game's program runs: the BIOS is done */
+            uint32_t pc = SekPc & 0xffffff;
+            if (pc >= 0xff0000 && pc < 0xfffd00) {
+                snd_mix_elastic = 0;
+                dbglog(DBG_INFO, "%s: BIOS done at frame %u\n", GAME_TITLE, (unsigned)frames);
+            }
+        }
 #ifndef SCD_RELEASE
         uint64_t t1 = timer_us_gettime64();
         t_emu += t1 - now;

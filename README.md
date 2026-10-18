@@ -6,5 +6,8 @@ picture drawn by the PVR from tile rectangles (as md-dc). The data track is
 read by a thread that starts when the emulated drive is told to seek; a
 sector that has not arrived holds the emulated drive, never the machine.
 CD audio (IMA ADPCM, tools/ngcdconv) comes from a second thread.
+The BIOS logo and title are shown (faster graphics ASIC renderer; the sound
+stretches slightly while they run below full speed); B held at power-on
+skips them (fast boot).
 `make` / `make RELEASE=1`. Details in Russian: README.ru.md. Licence:
 PicoDrive's (non-commercial, with sources; src/pd/COPYING).

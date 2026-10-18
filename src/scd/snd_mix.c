@@ -27,6 +27,7 @@ static uint32_t snd_head, snd_tail;           /* entries written / read */
 uint32_t snd_mix_underruns, snd_mix_drops;
 static int priming = 1;                       /* silence until the cushion is there */
 uint32_t snd_mix_fixed;                       /* tests: fixed 16.16 step, no backlog control */
+volatile int snd_mix_elastic;                 /* the machine may run up to ~12 % slow (BIOS screens) */
 
 /* PicoIn.writeSound: once per frame, after the frame's CD audio */
 static void write_sound(int len) {            /* len in bytes */
@@ -58,6 +59,7 @@ void snd_mix_init(void) {
 static snd_t prev_e, cur_e;
 static uint32_t snd_frac;                     /* 16.16 between prev and cur */
 static int32_t err_f;                         /* 16 x smoothed backlog error */
+static int32_t el_i;                          /* elastic mode: 16 x integral step correction */
 /* 65536 * 22050 * 59.94/60 / 44100 */
 #define SND_STEP_NOMINAL 32735u
 
@@ -93,9 +95,18 @@ void snd_mix_out(int16_t *out, int frames) {
         err_f = 0;
     }
     err_f += (err * 16 - err_f) / 32;
-    int32_t adj = err_f / 256;
-    if (adj > 65) adj = 65;
-    if (adj < -65) adj = -65;
+    int32_t adj, lim;
+    if (snd_mix_elastic) {                    /* up to ~18 %: follow a machine that runs slow */
+        el_i += err;                      /* integral: settles where reading = writing */
+        if (el_i > 6000 * 16) el_i = 6000 * 16;
+        if (el_i < -6000 * 16) el_i = -6000 * 16;
+        adj = el_i / 16 + err_f / 16; lim = 6000;
+    } else {                                  /* 0.2 %: no audible pitch change */
+        el_i = 0;
+        adj = err_f / 256; lim = 65;
+    }
+    if (adj > lim) adj = lim;
+    if (adj < -lim) adj = -lim;
     uint32_t step = snd_mix_fixed ? snd_mix_fixed : (uint32_t)((int32_t)SND_STEP_NOMINAL + adj);
 
     for (int i = 0; i < frames; i++) {

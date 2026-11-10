@@ -39,7 +39,6 @@ BIOS files and games are not included.
   speed behind a black screen (~8–10 s instead of a minute of waiting).
 - Saves: the 8 KB Sega CD backup RAM goes to the first VMU (`SCDBRAM`),
   ~2 s after it changes; shared by all games, as on the console.
-- Several games on one disc with the anthology-dc menu.
 
 ## Building
 
@@ -60,7 +59,7 @@ converted by `tools/ngcdconv`:
     cc -O2 -o ngcdconv tools/ngcdconv/ngcdconv.c
     ./ngcdconv "Snatcher (USA).cue" out
 
-| File (disc root or game folder) | From | Size |
+| File (disc root) | From | Size |
 |---|---|---|
 | `1ST_READ.BIN` | `segacd.elf`, scrambled | |
 | `BIOS_U.BIN` / `BIOS_J.BIN` / `BIOS_E.BIN`, or `BIOS.BIN` | the Sega CD / Mega-CD BIOS of the disc's region | 128 KB |
@@ -73,16 +72,9 @@ of the disc differs between Japan, the USA and Europe, and a Japanese disc
 with the US BIOS ends in the BIOS's CD player. The emulator reads the
 region from the disc's header and loads `BIOS_J.BIN` (Mega-CD, e.g.
 `bios_CD_J.bin`), `BIOS_U.BIN` (Sega CD, `bios_CD_U.bin`) or `BIOS_E.BIN`
-(Mega-CD, `bios_CD_E.bin`); if that file is missing, `BIOS.BIN`. The game's
-folder is looked at first, then the disc root. When the BIOS's own region
-letter does not match the disc, the screen says which BIOS is needed.
-
-### Several games on one disc
-
-With anthology-dc the files of each game live in its own folder
-(`SNATCHER/`, `TSUBASA/` …), the menu starts `segacd.elf` with that folder,
-and Start+A+B+X+Y goes back to the menu. The BIOS files can sit in the disc
-root once for all games.
+(Mega-CD, `bios_CD_E.bin`); if that file is missing, `BIOS.BIN`. When
+the BIOS's own region letter does not match the disc, the screen says
+which BIOS is needed.
 
 ## Controls
 
@@ -94,7 +86,7 @@ root once for all games.
 | Start | Start | pause / menu |
 | D-pad, analog stick | D-pad | |
 | B held at power-on | | the BIOS as it is (CD player, memory manager) |
-| Start+A+B+X+Y | | quit (to the anthology menu) |
+| Start+A+B+X+Y | | quit |
 
 ## How it was tested (without a Dreamcast)
 

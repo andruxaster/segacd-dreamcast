@@ -23,7 +23,7 @@ CORE_SRC = $(addprefix $(P)/pico/, pico.c cart.c memory.c state.c sek.c z80if.c 
            $(P)/md_stubs.c \
            $(addprefix $(P)/zlib/, inflate.c inftrees.c inffast.c adler32.c crc32.c zutil.c uncompr.c gzio.c \
              deflate.c trees.c compress.c)
-FE_SRC   = src/mq/mq.c src/dc/mq_pvr.c src/dc/menu_return.c \
+FE_SRC   = src/mq/mq.c src/dc/mq_pvr.c \
            src/scd/cd_cache.c src/scd/mcd_idle.c src/scd/mcd_boot.c src/scd/nga_cdda.c src/scd/snd_mix.c \
            src/fame/fame_pico.c
 OBJS     = $(patsubst %.c,%.o,$(CORE_SRC) $(FE_SRC)) src/fame/fame.o

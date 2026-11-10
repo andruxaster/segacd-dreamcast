@@ -1,13 +1,12 @@
 /* segacd-dc: Dreamcast / KallistiOS front end for PicoDrive's Mega CD
    (Sega CD) core; made for Snatcher (USA), runs other discs too.
 
-   Files in the game folder (the disc root, or the folder the anthology menu
-   gives; tools/ngcdconv makes the last three from the cue/bin image):
+   Files in the disc root (tools/ngcdconv makes the last three from the
+   cue/bin image):
      BIOS.BIN     Sega CD BIOS, 128 KB: the disc's region (Snatcher USA:
                   bios_CD_U.bin); or one per region, BIOS_U.BIN /
                   BIOS_J.BIN (Mega-CD, Japanese discs: bios_CD_J.bin) /
-                  BIOS_E.BIN, tried before BIOS.BIN; in the game
-                  folder or the disc root
+                  BIOS_E.BIN, tried before BIOS.BIN
      DISC.CUE     cue sheet over the files below
      DATA.ISO     data track, 2048-byte sectors
      TRKnn.NGA    CD audio tracks, IMA ADPCM
@@ -40,7 +39,6 @@
 #include "pico/pico_int.h"
 #include "../mq/mq.h"
 #include "mq_pvr.h"
-#include "menu_return.h"
 #include "nga.h"
 #include "nga_cdda.h"
 #include "snd_mix.h"
@@ -57,22 +55,8 @@ KOS_INIT_FLAGS(INIT_DEFAULT | INIT_QUIET);
 KOS_INIT_FLAGS(INIT_DEFAULT);
 #endif
 
-/* ---- game folder (the marker of the other -dc programs, so the anthology
-   menu can start this one from a sub folder) ---- */
-#define DIR_MARKER "NGCD-DISC-DIR="
-volatile char disc_dir_patch[64] __attribute__((used, aligned(4))) = DIR_MARKER "/cd/";
+/* the disc: every file is read from its root */
 static const char *disc_dir = "/cd/";
-static char disc_dir_buf[48];
-
-static void pick_disc_dir(void) {
-    const volatile char *p = disc_dir_patch + sizeof(DIR_MARKER) - 1;
-    size_t n = 0;
-    while (n < sizeof(disc_dir_buf) - 2 && p[n] && p[n] != ' ') { disc_dir_buf[n] = p[n]; n++; }
-    disc_dir_buf[n] = 0;
-    if (n < 5 || strncmp(disc_dir_buf, "/cd/", 4) != 0) return;
-    if (disc_dir_buf[n - 1] != '/') { disc_dir_buf[n++] = '/'; disc_dir_buf[n] = 0; }
-    disc_dir = disc_dir_buf;
-}
 
 static void fatal(const char *msg) {
     dbglog(DBG_ERROR, "%s: %s\n", GAME_TITLE, msg);
@@ -136,16 +120,12 @@ static const char *get_bios(int *region, const char *cd_fname) {
     (void)cd_fname;
     disc_region = *region;
     const char *name = *region == 1 ? "BIOS_J.BIN" : *region == 8 ? "BIOS_E.BIN" : "BIOS_U.BIN";
-    /* the game's folder first, then the disc root (one set of BIOSes for
-       all the games of an anthology disc) */
-    const char *dirs[2] = { disc_dir, "/cd/" };
-    for (int pass = 0; pass < 2; pass++)
-        for (int d = 0; d < 2; d++) {
-            if (d == 1 && !strcmp(disc_dir, "/cd/")) continue;
-            snprintf(bios_path, sizeof bios_path, "%s%s", dirs[d], pass ? "BIOS.BIN" : name);
-            FILE *f = fopen(bios_path, "rb");
-            if (f) { fclose(f); return bios_path; }
-        }
+    snprintf(bios_path, sizeof bios_path, "%s%s", disc_dir, name);
+    FILE *f = fopen(bios_path, "rb");
+    if (f) { fclose(f); return bios_path; }
+    snprintf(bios_path, sizeof bios_path, "%sBIOS.BIN", disc_dir);
+    f = fopen(bios_path, "rb");
+    if (f) { fclose(f); return bios_path; }
     snprintf(bios_path, sizeof bios_path, "%s%s", disc_dir, name);
     return bios_path;
 }
@@ -431,7 +411,6 @@ static void shutdown_and_exit(void) {
     snd_stream_destroy(snd);
     snd_stream_shutdown();
     pvr_shutdown();
-    menu_return(disc_dir);                         /* started by the anthology menu: back to it */
     arch_exit();
 }
 
@@ -439,8 +418,6 @@ static void shutdown_and_exit(void) {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    pick_disc_dir();
-    dbglog(DBG_INFO, "%s: game folder %s\n", GAME_TITLE, disc_dir);
     sem_init(&cwake, 0);
 
     PicoIn.opt = POPT_EN_STEREO | POPT_EN_FM | POPT_EN_PSG | POPT_EN_Z80

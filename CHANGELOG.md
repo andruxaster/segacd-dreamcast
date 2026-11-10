@@ -1,5 +1,11 @@
 # segacd-dc changes
 
+## r6
+
+- A plain Sega CD emulator: the anthology-dc parts are gone (the folder
+  marker the menu patched, the return to the menu on quit). Every file is
+  read from the disc root; Start+A+B+X+Y quits to the Dreamcast.
+
 ## r5
 
 - The project is now segacd-dc (repository segacd-dreamcast): the program

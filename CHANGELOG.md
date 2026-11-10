@@ -1,4 +1,11 @@
-# snatcher-dc changes
+# segacd-dc changes
+
+## r5
+
+- The project is now segacd-dc (repository segacd-dreamcast): the program
+  is `segacd.elf`, the VMU file keeps its name (`SCDBRAM`, old saves stay).
+  README.md rewritten in English as a Sega CD emulator with Snatcher as
+  its first game.
 
 ## r4
 

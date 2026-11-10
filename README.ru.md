@@ -1,6 +1,9 @@
-# snatcher-dc — Snatcher (Sega CD) на Dreamcast
+# segacd-dc — эмулятор Sega CD / Mega-CD на Dreamcast
 
-Отдельная программа для одной игры. Ядро — эмулятор Mega Drive / Mega CD
+[English version](README.md)
+
+Начинался как отдельная программа для Snatcher (USA) и настроен под неё,
+но запускает и другие диски Sega CD (см. «Другие игры Sega CD»). Ядро — эмулятор Mega Drive / Mega CD
 из PicoDrive (irixxxx/picodrive), работает настоящий BIOS Sega CD. Оба
 процессора 68000 — ассемблерный FAME SH4, Z80 — CZ80. Картинку рисует
 видеочип Dreamcast: тайлы как прямоугольники, как в md-dc. Продолжение
@@ -11,7 +14,7 @@
 
 Нужна настроенная KallistiOS (`environ.sh`).
 
-    make            # snatcher.elf, с отладочным выводом (perf каждые 2 с)
+    make            # segacd.elf, с отладочным выводом (perf каждые 2 с)
     make RELEASE=1  # без вывода в консоль
     make SOFT=1     # картинка только программным рендером PicoDrive (для сравнения)
 
@@ -28,12 +31,12 @@
 
 | Файл | Откуда | Размер |
 |---|---|---|
-| `1ST_READ.BIN` | `snatcher.elf` (scramble) | |
+| `1ST_READ.BIN` | `segacd.elf` (scramble) | |
 | `BIOS.BIN` или `BIOS_U.BIN` / `BIOS_J.BIN` / `BIOS_E.BIN` | BIOS Sega CD / Mega-CD региона диска: `bios_CD_U.bin` для американского диска (Snatcher), `bios_CD_J.bin` для японского | 128 КБ |
 | `DISC.CUE`, `DATA.ISO`, `TRK02.NGA` … `TRK21.NGA` | из `ngcdconv` | 115 + 112 МБ |
 
 С меню anthology-dc все эти файлы лежат в папке игры (`SNATCHER/`), а
-Start+A+B+X+Y возвращает в меню.
+Start+A+B+X+Y возвращает в меню; BIOS можно положить один раз в корень диска.
 
 ### BIOS и регион диска
 
@@ -77,7 +80,7 @@ BIOS заканчивается CD-плеером BIOS. Поэтому эмул�
 
 **Диск.** На Sega CD игра сначала даёт приводу команду «играть с сектора N»,
 и привод какое-то время ищет (PicoDrive считает ~11 тиков по 1/75 с плюс
-расстояние). В snatcher-dc в этот момент поток (`src/scd/cd_cache.c`)
+расстояние). В segacd-dc в этот момент поток (`src/scd/cd_cache.c`)
 сразу начинает читать с GD-ROM нужный кусок дорожки данных (64 КБ) и два
 следующих. Если сектор, который привод должен выдать, ещё не прочитан,
 эмулируемый привод держит его один тик — как если бы поиск был чуть

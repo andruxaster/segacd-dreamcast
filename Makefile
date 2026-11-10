@@ -1,16 +1,16 @@
-# snatcher-dc: Snatcher (Sega CD) for the Dreamcast (KallistiOS), with
+# segacd-dc: Sega CD / Mega-CD emulator for the Dreamcast (KallistiOS), with
 # PicoDrive's Mega CD core: both 68000s on the FAME SH4 assembler core
 # (src/fame), Z80 on CZ80, the picture drawn by the PVR from tile
 # rectangles (src/mq), the data track and the CD audio read by threads
 # (src/scd), the BIOS run at full speed behind a black screen.
-#   make               -> snatcher.elf (debug: KOS banner, perf log every 2 s)
+#   make               -> segacd.elf (debug: KOS banner, perf log every 2 s)
 #   make RELEASE=1     -> the same without any console output
 #   make SOFT=1        -> picture drawn by PicoDrive's line renderer only
 # Run `make clean` when switching between RELEASE / SOFT and the default.
 # The PC test build lives in host/, the SH4 bench in bench/ (see README),
 # the disc converter in tools/ngcdconv.
 
-TARGETS = snatcher.elf
+TARGETS = segacd.elf
 
 P = src/pd
 CORE_SRC = $(addprefix $(P)/pico/, pico.c cart.c memory.c state.c sek.c z80if.c videoport.c draw2.c draw.c \
@@ -67,7 +67,7 @@ src/scd/%.o: src/scd/%.c $(wildcard src/scd/*.h)
 src/dc/%.o: src/dc/%.c src/mq/mq.h src/dc/mq_pvr.h
 	kos-cc $(CORE_FLAGS) $(FE_DEFS) -c $< -o $@
 
-snatcher.elf: $(OBJS) src/dc/scd_dc.o
+segacd.elf: $(OBJS) src/dc/scd_dc.o
 	kos-cc -o $@ $(OBJS) src/dc/scd_dc.o -lm
 
 clean:

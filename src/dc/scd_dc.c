@@ -1,5 +1,5 @@
-/* snatcher-dc: Dreamcast / KallistiOS front end for PicoDrive's Mega CD
-   (Sega CD) core, made for Snatcher (USA).
+/* segacd-dc: Dreamcast / KallistiOS front end for PicoDrive's Mega CD
+   (Sega CD) core; made for Snatcher (USA), runs other discs too.
 
    Files in the game folder (the disc root, or the folder the anthology menu
    gives; tools/ngcdconv makes the last three from the cue/bin image):
@@ -48,7 +48,7 @@
 #include "cd_cache.h"
 
 #ifndef GAME_TITLE
-#define GAME_TITLE "snatcher"
+#define GAME_TITLE "segacd"
 #endif
 
 #ifdef SCD_RELEASE
@@ -305,8 +305,8 @@ static void *save_thread(void *arg) {
         vmu_pkg_t pkg;
         memset(&pkg, 0, sizeof pkg);
         strcpy(pkg.desc_short, "Sega CD save");
-        strcpy(pkg.desc_long, "Snatcher: Sega CD backup RAM");
-        strcpy(pkg.app_id, "snatcher-dc");
+        strcpy(pkg.desc_long, "Sega CD backup RAM");
+        strcpy(pkg.app_id, "segacd-dc");
         pkg.icon_cnt = 0;
         pkg.eyecatch_type = VMUPKG_EC_NONE;
         pkg.data_len = BRAM_SIZE;

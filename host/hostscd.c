@@ -1,4 +1,4 @@
-/* Headless host front end for the PicoDrive Mega CD core (Snatcher).
+/* Headless host front end for the PicoDrive Mega CD core (segacd-dc).
    usage: scdh bios.bin game.cue
    env: SC_FRAMES (3600), SC_PPM (dir) + SC_EVERY (60), SC_WAV (file),
         SC_SCRIPT (lines "frame keys", keys: udlr ABC S, held until the next line),

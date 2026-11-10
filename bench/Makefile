@@ -14,7 +14,7 @@ SRC = $(addprefix $(P)/pico/, pico.c cart.c memory.c state.c sek.c z80if.c video
       $(addprefix $(P)/pico/sound/, sound.c resampler.c sn76496.c ym2612.c ym2413.c mix.c vgm.c) \
       $(CPUSRC) $(P)/cpu/cz80/cz80.c $(P)/unzip/unzip.c $(P)/platform/common/upscale.c \
       $(P)/md_stubs.c $(ZL) ../src/mq/mq.c ../src/dc/mq_pvr.c ../host/mq_raster.c ../host/ta_sim.c \
-      ../src/scd/mcd_idle.c ../src/scd/mcd_boot.c ../src/scd/nga_cdda.c ../host/hostscd.c
+      ../src/scd/mcd_idle.c ../src/scd/mcd_boot.c ../src/scd/nga_cdda.c ../src/scd/cd_cache.c ../host/hostscd.c
 .DEFAULT_GOAL := scdsh4
 # FAME=c: PicoDrive's FAME C instead of the FAME SH4 assembler core
 ifeq ($(FAME),c)

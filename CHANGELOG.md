@@ -1,5 +1,16 @@
 # snatcher-dc changes
 
+## r4
+
+- BIOS by the disc's region: `BIOS_J.BIN` / `BIOS_U.BIN` / `BIOS_E.BIN`
+  (game folder, then disc root), else `BIOS.BIN`. A BIOS whose region does
+  not match the disc is reported on screen (it would only reach its CD
+  player after a minute of black fast boot).
+- Other Sega CD games: Captain Tsubasa (Japan) with the Mega-CD 1.01 J BIOS
+  boots and plays in the PC build and the SH4 code under qemu.
+- PC build: warns about a BIOS / disc region mismatch. bench/Makefile:
+  cd_cache.c linked (lost with the r3 revert).
+
 ## r2
 
 - Sound: ~70 ms cushion in the output ring (was ~23 ms), built before the

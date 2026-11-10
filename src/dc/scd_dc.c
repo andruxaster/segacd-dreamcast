@@ -3,7 +3,11 @@
 
    Files in the game folder (the disc root, or the folder the anthology menu
    gives; tools/ngcdconv makes the last three from the cue/bin image):
-     BIOS.BIN     Sega CD BIOS (US: bios_CD_U.bin), 128 KB
+     BIOS.BIN     Sega CD BIOS, 128 KB: the disc's region (Snatcher USA:
+                  bios_CD_U.bin); or one per region, BIOS_U.BIN /
+                  BIOS_J.BIN (Mega-CD, Japanese discs: bios_CD_J.bin) /
+                  BIOS_E.BIN, tried before BIOS.BIN; in the game
+                  folder or the disc root
      DISC.CUE     cue sheet over the files below
      DATA.ISO     data track, 2048-byte sectors
      TRKnn.NGA    CD audio tracks, IMA ADPCM
@@ -74,7 +78,16 @@ static void fatal(const char *msg) {
     dbglog(DBG_ERROR, "%s: %s\n", GAME_TITLE, msg);
     vid_set_mode(DM_640x480, PM_RGB565);
     vid_clear(0, 0, 64);
-    bfont_draw_str(vram_s + 24 * vid_mode->width + 8, vid_mode->width, true, msg);
+    char line[64];
+    int y = 24;
+    for (const char *s = msg; *s && y < 456; y += 28) {      /* '\n' starts a line */
+        size_t n = strcspn(s, "\n");
+        if (n >= sizeof line) n = sizeof line - 1;
+        memcpy(line, s, n); line[n] = 0;
+        bfont_draw_str(vram_s + y * vid_mode->width + 8, vid_mode->width, true, line);
+        s += n;
+        if (*s == '\n') s++;
+    }
     for (;;)
         thd_sleep(1000);
 }
@@ -112,10 +125,40 @@ void lprintf(const char *fmt, ...) {
     (void)fmt;
 #endif
 }
+/* The BIOS for the disc's region (PicoDrive reads it from the disc's header:
+   1 Japan, 4 USA, 8 Europe): BIOS_J/U/E.BIN, else BIOS.BIN. A BIOS only
+   boots discs of its own region (the security code at the start of the
+   disc differs): a Japanese disc with an American BIOS ends in the BIOS's
+   CD player, so a mismatch is said on screen instead. */
 static char bios_path[96];
+static int disc_region;
 static const char *get_bios(int *region, const char *cd_fname) {
-    (void)region; (void)cd_fname;
+    (void)cd_fname;
+    disc_region = *region;
+    const char *name = *region == 1 ? "BIOS_J.BIN" : *region == 8 ? "BIOS_E.BIN" : "BIOS_U.BIN";
+    /* the game's folder first, then the disc root (one set of BIOSes for
+       all the games of an anthology disc) */
+    const char *dirs[2] = { disc_dir, "/cd/" };
+    for (int pass = 0; pass < 2; pass++)
+        for (int d = 0; d < 2; d++) {
+            if (d == 1 && !strcmp(disc_dir, "/cd/")) continue;
+            snprintf(bios_path, sizeof bios_path, "%s%s", dirs[d], pass ? "BIOS.BIN" : name);
+            FILE *f = fopen(bios_path, "rb");
+            if (f) { fclose(f); return bios_path; }
+        }
+    snprintf(bios_path, sizeof bios_path, "%s%s", disc_dir, name);
     return bios_path;
+}
+
+/* the region letter of a Mega CD BIOS (its Mega Drive header, 0x1f0) */
+static char bios_region(const char *path) {
+    char c = 0;
+    FILE *f = fopen(path, "rb");
+    if (f) {
+        if (fseek(f, 0x1f0, SEEK_SET) == 0 && fread(&c, 1, 1, f) != 1) c = 0;
+        fclose(f);
+    }
+    return c;
 }
 
 /* ------------------------------------------------- data track (cd_cache.c) */
@@ -409,13 +452,24 @@ int main(int argc, char **argv) {
     PicoSetInputDevice(1, PICO_INPUT_NOTHING);
 
     char path[96];
-    snprintf(bios_path, sizeof bios_path, "%sBIOS.BIN", disc_dir);
-    FILE *bf = fopen(bios_path, "rb");
-    if (!bf) { char m[128]; snprintf(m, sizeof m, "Missing %s", bios_path); fatal(m); }
-    fclose(bf);
     snprintf(path, sizeof path, "%sDISC.CUE", disc_dir);
     int r = PicoLoadMedia(path, NULL, 0, NULL, get_bios, NULL, NULL);
-    if (r == PM_BAD_CD_NO_BIOS) fatal("BIOS.BIN not accepted (Sega CD BIOS, 128 KB)");
+    if (r == PM_BAD_CD_NO_BIOS) {
+        char m[160];
+        snprintf(m, sizeof m, "No Sega CD BIOS:\n%s (128 KB)", bios_path);
+        fatal(m);
+    }
+    {
+        char want = disc_region == 1 ? 'J' : disc_region == 8 ? 'E' : 'U';
+        char have = bios_region(bios_path);
+        if ((have == 'J' || have == 'U' || have == 'E') && have != want) {
+            static const char *const need[3] = {
+                "Japanese disc: needs the Mega-CD BIOS\n(bios_CD_J.bin) in the game folder\nas BIOS_J.BIN",
+                "US disc: needs the Sega CD BIOS\n(bios_CD_U.bin) in the game folder\nas BIOS_U.BIN",
+                "European disc: needs the Mega-CD BIOS\n(bios_CD_E.bin) in the game folder\nas BIOS_E.BIN" };
+            fatal(need[want == 'J' ? 0 : want == 'U' ? 1 : 2]);
+        }
+    }
     if (r != PM_CD) { char m[128]; snprintf(m, sizeof m, "%s: no Sega CD disc (tools/ngcdconv)", path); fatal(m); }
     snprintf(path, sizeof path, "%sDATA.ISO", disc_dir);
     if (!cd_cache_open(path)) fatal("DATA.ISO missing");

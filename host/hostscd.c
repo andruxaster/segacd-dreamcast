@@ -61,7 +61,8 @@ void lprintf(const char *fmt, ...) {
 }
 
 static const char *bios_path;
-static const char *get_bios(int *region, const char *cd_fname) { (void)region; (void)cd_fname; return bios_path; }
+static int disc_region;
+static const char *get_bios(int *region, const char *cd_fname) { (void)cd_fname; disc_region = *region; return bios_path; }
 
 /* NGA CD audio blocks (nga_cdda.c), straight from the file */
 #include "nga.h"
@@ -236,6 +237,13 @@ int main(int argc, char **argv) {
     PicoSetInputDevice(0, PICO_INPUT_PAD_3BTN);
     PicoSetInputDevice(1, PICO_INPUT_NOTHING);
     enum media_type_e t = PicoLoadMedia(argv[2], NULL, 0, NULL, get_bios, NULL, NULL);
+    {   /* as the Dreamcast front end: a BIOS only boots discs of its region */
+        char have = 0; FILE *bf = fopen(bios_path, "rb");
+        if (bf) { if (fseek(bf, 0x1f0, SEEK_SET) || fread(&have, 1, 1, bf) != 1) have = 0; fclose(bf); }
+        char want = disc_region == 1 ? 'J' : disc_region == 8 ? 'E' : 'U';
+        if ((have == 'J' || have == 'U' || have == 'E') && have != want)
+            printf("warning: %c disc, %c BIOS: the BIOS will not boot it\n", want, have);
+    }
     if (t != PM_CD) { printf("load failed (%d)\n", (int)t); return 1; }
     if (getenv("SC_CACHE")) {                 /* DATA.ISO next to the cue */
         char iso_p[512]; strncpy(iso_p, argv[2], sizeof iso_p - 16); iso_p[sizeof iso_p - 16] = 0;
